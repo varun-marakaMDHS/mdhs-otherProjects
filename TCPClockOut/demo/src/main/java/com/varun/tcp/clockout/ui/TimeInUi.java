@@ -26,6 +26,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class TimeInUi extends Application implements CommandLineRunner {
@@ -42,6 +45,8 @@ public class TimeInUi extends Application implements CommandLineRunner {
     private Button clockOutButton;
     private HBox inputBox;
     private TrayIcon trayIcon;
+    private ScheduledExecutorService executorService;
+    private boolean blinkState = false;
 
     @Override
     public void run(String... args) {
@@ -52,7 +57,6 @@ public class TimeInUi extends Application implements CommandLineRunner {
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
         primaryStage.setTitle("Time In Logger");
-
         Label label = new Label("Select Time In:");
         label.setStyle("-fx-font-size: 14px;");
         datePicker = new DatePicker();
@@ -91,7 +95,7 @@ public class TimeInUi extends Application implements CommandLineRunner {
             scheduleReminder(timeIn);
             disableInputs();
         });
-
+        setupSystemTray(primaryStage);
         editButton.setOnAction(event -> enableInputs());
         clockOutButton.setOnAction(event -> clockOut());
         checkExistingTimeIn();
@@ -143,15 +147,15 @@ public class TimeInUi extends Application implements CommandLineRunner {
             timer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    //System.out.println("Reminder: It's been 8 hours since you clocked in!");
                     LocalDateTime.now();
                     Platform.runLater(() -> {
+                        primaryStage.show();
                         primaryStage.toFront();
-                        primaryStage.setIconified(true);
                         primaryStage.requestFocus();
                         reminderLabel.setText(reminderLabel.getText() + "\n"+ LocalDateTime.now().format(FORMATTER_ss) + " Reminder: It's been 8 hours since you clocked in!");
                         showClockOutButton();
                         showNotification("App Minimized", "You have a new notification!");
+                        startBlinking();
                     });
                 }
             }, delay);
@@ -176,11 +180,60 @@ public class TimeInUi extends Application implements CommandLineRunner {
     private void clockOut() {
         clockOutButton.setVisible(false);
         reminderLabel.setText(reminderLabel.getText() + "\n"+ LocalDateTime.now().format(FORMATTER_ss) + " You have clocked out.");
+        stopBlinking();
     }
 
     private void showNotification(String title, String message) {
         if (trayIcon != null) {
             trayIcon.displayMessage(title, message, TrayIcon.MessageType.INFO);
+        }
+    }
+
+    private void setupSystemTray(Stage primaryStage) {
+        System.setProperty("java.awt.headless", "false");
+        if (SystemTray.isSupported()) {
+            try {
+                SystemTray tray = SystemTray.getSystemTray();
+                Image defaultIcon = ImageIO.read(getClass().getResource("/icon.png"));
+                trayIcon = new TrayIcon(defaultIcon, "JavaFX App");
+                trayIcon.setImageAutoSize(true);
+                trayIcon.addActionListener(e -> Platform.runLater(() -> primaryStage.setIconified(false)));
+
+                tray.add(trayIcon);
+            } catch (IOException | AWTException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void startBlinking() {
+        if (executorService == null || executorService.isShutdown()) {
+            executorService = Executors.newScheduledThreadPool(1);
+            executorService.scheduleAtFixedRate(() -> {
+                if (trayIcon != null) {
+                    Image iconToShow;
+                    try {
+                        iconToShow = ImageIO.read(getClass().getResource(blinkState ? "/icon.png" : "/icon_alert.png"));
+                        trayIcon.setImage(iconToShow);
+                        blinkState = !blinkState;
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }, 0, 500, TimeUnit.MILLISECONDS); // Change icon every 500ms
+        }
+    }
+
+    private void stopBlinking() {
+        if (executorService != null) {
+            executorService.shutdown();
+            executorService = null;
+        }
+        try {
+            Image defaultIcon = ImageIO.read(getClass().getResource("/icon.png"));
+            trayIcon.setImage(defaultIcon); // Reset to default icon
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
