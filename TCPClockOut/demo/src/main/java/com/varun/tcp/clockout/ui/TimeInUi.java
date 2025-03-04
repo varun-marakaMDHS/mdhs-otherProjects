@@ -139,9 +139,26 @@ public class TimeInUi extends Application implements CommandLineRunner {
 
     private void scheduleReminder(LocalDateTime timeIn) {
         //LocalDateTime reminderTime = timeIn.plusHours(8);
-        LocalDateTime reminderTime = timeIn.plusSeconds(8);
+        //LocalDateTime reminderTime = timeIn.plusSeconds(8); // for testing in 8 seconds
+        var showClockOut = false;
+        var duration = java.time.Duration.between(timeIn, LocalDateTime.now());
+        LocalDateTime reminderTime = timeIn.plusHours(8).plusMinutes(8);
         long delay = java.time.Duration.between(LocalDateTime.now(), reminderTime).toMillis();
+        long hours = duration.toHours();
+        long minutes = duration.minusHours(hours).toMinutes();
+        runTimerNow(delay," First Reminder Clock Out in 15 minutes, " + hours + " Hours " + minutes + " minutes lapsed."  , showClockOut);
 
+        reminderTime = timeIn.plusHours(8).plusMinutes(20);
+        delay = java.time.Duration.between(LocalDateTime.now(), reminderTime).toMillis();
+        runTimerNow(delay," Second Reminder Clock Out in 7 minutes" + hours + " Hours " + minutes + " minutes lapsed.", showClockOut);
+
+        reminderTime = timeIn.plusHours(8).plusMinutes(23);
+        delay = java.time.Duration.between(LocalDateTime.now(), reminderTime).toMillis();
+        showClockOut = true;
+        runTimerNow(delay," Final Reminder Clock Out Now" + hours + " Hours " + minutes + " minutes lapsed.", showClockOut);
+    }
+
+    private void runTimerNow(long delay, String message, Boolean showClockOut) {
         if (delay > 0) {
             Timer timer = new Timer();
             timer.schedule(new TimerTask() {
@@ -152,8 +169,8 @@ public class TimeInUi extends Application implements CommandLineRunner {
                         primaryStage.show();
                         primaryStage.toFront();
                         primaryStage.requestFocus();
-                        reminderLabel.setText(reminderLabel.getText() + "\n"+ LocalDateTime.now().format(FORMATTER_ss) + " Reminder: It's been 8 hours since you clocked in!");
-                        showClockOutButton();
+                        reminderLabel.setText(reminderLabel.getText() + "\n"+ LocalDateTime.now().format(FORMATTER_ss) + message);
+                        if(showClockOut)  showClockOutButton();
                         showNotification("App Minimized", "You have a new notification!");
                         startBlinking();
                     });
