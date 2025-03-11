@@ -1,6 +1,9 @@
 package com.varun.tcp.clockout.ui;
 
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
 import javafx.animation.ScaleTransition;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -18,11 +21,15 @@ import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.MenuItem;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -37,6 +44,7 @@ public class TimeInUi extends Application implements CommandLineRunner {
     private static final DateTimeFormatter FORMATTER_ss = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private Stage primaryStage;
     private Label reminderLabel;
+    private Label remainingTimeLabel;
     private DatePicker datePicker;
     private Spinner<Integer> hourSpinner;
     private Spinner<Integer> minuteSpinner;
@@ -47,6 +55,9 @@ public class TimeInUi extends Application implements CommandLineRunner {
     private TrayIcon trayIcon;
     private ScheduledExecutorService executorService;
     private boolean blinkState = false;
+    Timeline timeline = new Timeline(
+            new KeyFrame(Duration.seconds(1), event -> updateElapsedTime())
+    );
 
     @Override
     public void run(String... args) {
@@ -55,6 +66,9 @@ public class TimeInUi extends Application implements CommandLineRunner {
 
     @Override
     public void start(Stage primaryStage) {
+        // Prevent the app from exiting when the last window is closed.
+        Platform.setImplicitExit(false);
+
         this.primaryStage = primaryStage;
         primaryStage.setTitle("Time In Logger");
         Label label = new Label("Select Time In:");
@@ -82,12 +96,20 @@ public class TimeInUi extends Application implements CommandLineRunner {
         scrollPane.setPrefWidth(100);
         reminderLabel.setStyle("-fx-font-size: 18px;");
 
+        remainingTimeLabel = new Label();
+        remainingTimeLabel.setWrapText(true);
+        remainingTimeLabel.setStyle("-fx-font-size: 18px;");
+
         inputBox = new HBox(10, label, datePicker, hourSpinner, minuteSpinner, submitButton);
         inputBox.setAlignment(Pos.CENTER);
-        VBox layout = new VBox(10, inputBox, editButton, clockOutButton, scrollPane);
+        VBox layout = new VBox(10, inputBox, editButton, clockOutButton, remainingTimeLabel ,scrollPane);
         layout.setAlignment(Pos.CENTER);
         Scene scene = new Scene(layout, 650, 550);
         primaryStage.setScene(scene);
+
+        // Start Remaining time lable
+        timeline.setCycleCount(Animation.INDEFINITE);
+        timeline.play();
 
         submitButton.setOnAction(event -> {
             LocalDateTime timeIn = LocalDateTime.of(datePicker.getValue(), java.time.LocalTime.of(hourSpinner.getValue(), minuteSpinner.getValue()));
@@ -95,10 +117,20 @@ public class TimeInUi extends Application implements CommandLineRunner {
             scheduleReminder(timeIn);
             disableInputs();
         });
+        // Override close behavior to hide the window instead of exiting.
+        primaryStage.setOnCloseRequest(event -> {
+            event.consume();        // Prevent default close action.
+            primaryStage.hide();      // Hide the window.
+            // Show a tray notification informing the user that the app is still running.
+            showNotification("JavaFX App", "Application is still running in the background.");
+        });
+
         setupSystemTray(primaryStage);
         editButton.setOnAction(event -> enableInputs());
         clockOutButton.setOnAction(event -> clockOut());
         checkExistingTimeIn();
+
+
     }
 
     private boolean checkExistingTimeIn() {
@@ -137,6 +169,14 @@ public class TimeInUi extends Application implements CommandLineRunner {
         }
     }
 
+    private void updateElapsedTime() {
+        LocalDateTime timeIn = LocalDateTime.of(datePicker.getValue(), java.time.LocalTime.of(hourSpinner.getValue(), minuteSpinner.getValue()));
+        long secondsElapsed = ChronoUnit.SECONDS.between(timeIn, LocalDateTime.now());
+        long hours = secondsElapsed / 3600;
+        long minutes = (secondsElapsed % 3600) / 60;
+        long seconds = secondsElapsed % 60;
+        remainingTimeLabel.setText(String.format("Elapsed Time: %02d:%02d:%02d", hours, minutes, seconds));
+    }
     private void scheduleReminder(LocalDateTime timeIn) {
         //LocalDateTime reminderTime = timeIn.plusHours(8);
         //LocalDateTime reminderTime = timeIn.plusSeconds(8); // for testing in 8 seconds
@@ -146,16 +186,16 @@ public class TimeInUi extends Application implements CommandLineRunner {
         long delay = java.time.Duration.between(LocalDateTime.now(), reminderTime).toMillis();
         long hours = duration.toHours();
         long minutes = duration.minusHours(hours).toMinutes();
-        runTimerNow(delay," First Reminder Clock Out in 15 minutes, " + hours + " Hours " + minutes + " minutes lapsed."  , showClockOut);
+        runTimerNow(delay," First Reminder Clock Out in 15 minutes, " + hours + " Hours " + minutes + " minutes lapsed. ClockIn time: " + timeIn  , showClockOut);
 
         reminderTime = timeIn.plusHours(8).plusMinutes(20);
         delay = java.time.Duration.between(LocalDateTime.now(), reminderTime).toMillis();
-        runTimerNow(delay," Second Reminder Clock Out in 7 minutes" + hours + " Hours " + minutes + " minutes lapsed.", showClockOut);
+        runTimerNow(delay," Second Reminder Clock Out in 3 minutes " + hours + " Hours " + minutes + " minutes lapsed. ClockIn time:" + timeIn, showClockOut);
 
         reminderTime = timeIn.plusHours(8).plusMinutes(23);
         delay = java.time.Duration.between(LocalDateTime.now(), reminderTime).toMillis();
         showClockOut = true;
-        runTimerNow(delay," Final Reminder Clock Out Now" + hours + " Hours " + minutes + " minutes lapsed.", showClockOut);
+        runTimerNow(delay," Final Reminder Clock Out Now " + hours + " Hours " + minutes + " minutes lapsed. ClockIn time:" + timeIn, showClockOut);
     }
 
     private void runTimerNow(long delay, String message, Boolean showClockOut) {
@@ -216,6 +256,48 @@ public class TimeInUi extends Application implements CommandLineRunner {
                 trayIcon.setImageAutoSize(true);
                 trayIcon.addActionListener(e -> Platform.runLater(() -> primaryStage.setIconified(false)));
 
+                // Create a popup menu for the tray icon.
+                PopupMenu popupMenu = new PopupMenu();
+
+                // "Open App" menu item.
+                MenuItem openAppItem = new MenuItem("Open App");
+                openAppItem.addActionListener(e -> Platform.runLater(() -> {
+                    primaryStage.show();
+                    primaryStage.toFront();
+                }));
+                popupMenu.add(openAppItem);
+
+                // "Stop Blinking" menu item.
+                MenuItem stopBlinkingItem = new MenuItem("Stop Blinking");
+                stopBlinkingItem.addActionListener(e -> stopBlinking());
+                popupMenu.add(stopBlinkingItem);
+
+                // Optionally, add an "Exit" item.
+                MenuItem exitItem = new MenuItem("Exit");
+                exitItem.addActionListener(e -> {
+                    Platform.exit();
+                    SystemTray.getSystemTray().remove(trayIcon);
+                });
+                popupMenu.add(exitItem);
+
+
+                // Set the popup menu to the tray icon.
+                trayIcon.setPopupMenu(popupMenu);
+
+                // Add a mouse listener to detect double-click events.
+                trayIcon.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        if (e.getClickCount() == 2) {
+                            // On double-click, show and bring the main window to front.
+                            Platform.runLater(() -> {
+                                primaryStage.show();
+                                primaryStage.toFront();
+                            });
+                        }
+                    }
+                });
+
                 tray.add(trayIcon);
             } catch (IOException | AWTException e) {
                 e.printStackTrace();
@@ -268,5 +350,11 @@ public class TimeInUi extends Application implements CommandLineRunner {
         minuteSpinner.setDisable(false);
         submitButton.setDisable(false);
         editButton.setDisable(true);
+    }
+
+    @Override
+    public void stop() throws Exception {
+
+        //super.stop();
     }
 }

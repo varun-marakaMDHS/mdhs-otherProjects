@@ -9,8 +9,8 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.varun.tcp</groupId>
-    <artifactId>demo</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <artifactId>tcp-reminder</artifactId>
+    <version>1.0.1</version>
     <name>demo</name>
     <description>demo</description>
     <properties>
@@ -59,6 +59,17 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <excludeDevtools>true</excludeDevtools>
+                    <executable>true</executable>
+                </configuration>
             </plugin>
         </plugins>
     </build>
