@@ -104,7 +104,7 @@ public class TimeInUi extends Application implements CommandLineRunner {
         inputBox.setAlignment(Pos.CENTER);
         VBox layout = new VBox(10, inputBox, editButton, clockOutButton, remainingTimeLabel ,scrollPane);
         layout.setAlignment(Pos.CENTER);
-        Scene scene = new Scene(layout, 650, 550);
+        Scene scene = new Scene(layout, 850, 550);
         primaryStage.setScene(scene);
 
         // Start Remaining time lable
