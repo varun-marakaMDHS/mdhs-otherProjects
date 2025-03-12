@@ -136,10 +136,14 @@ public class TimeInUi extends Application implements CommandLineRunner {
     private boolean checkExistingTimeIn() {
         if (!Files.exists(Paths.get(FILE_PATH))) {
             primaryStage.show();
+            datePicker.setValue(LocalDateTime.now().toLocalDate());
             return false;
         }
         try {
             List<String> lines = Files.readAllLines(Paths.get(FILE_PATH));
+            if(lines.isEmpty()) {
+                datePicker.setValue(LocalDateTime.now().toLocalDate());
+            }
             if (!lines.isEmpty()) {
                 LocalDateTime timeIn = LocalDateTime.parse(lines.get(0), FORMATTER);
                 datePicker.setValue(timeIn.toLocalDate());
@@ -277,6 +281,8 @@ public class TimeInUi extends Application implements CommandLineRunner {
                 exitItem.addActionListener(e -> {
                     Platform.exit();
                     SystemTray.getSystemTray().remove(trayIcon);
+                    // Forcefully terminate all running threads and processes
+                    System.exit(0);
                 });
                 popupMenu.add(exitItem);
 

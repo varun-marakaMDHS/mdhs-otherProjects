@@ -13,7 +13,7 @@ public class DemoApplication {
     public static void main(String[] args) {
 
         ApplicationContext context = SpringApplication.run(DemoApplication.class, args);
-        System.out.println("Hello World! from spring boot");
+        //System.out.println("Hello World! from spring boot");
         context.getBean(TimeInUi.class);
     }
 
